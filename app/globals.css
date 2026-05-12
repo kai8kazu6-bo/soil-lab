@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #f5f2ed;
+  --color-text: #4e342e;
+  --color-accent: #2d5a27;
+}
+
+html,
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* オーガニックな質感のうっすらとしたテクスチャ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+      circle at 20% 10%,
+      rgba(45, 90, 39, 0.04) 0,
+      transparent 35%
+    ),
+    radial-gradient(circle at 90% 80%, rgba(78, 52, 46, 0.05) 0, transparent 40%);
+  z-index: 0;
+}
+
+@layer components {
+  .card {
+    @apply bg-white/70 backdrop-blur-sm rounded-organic shadow-soft border border-beige-200;
+  }
+  .btn-primary {
+    @apply bg-brown text-beige-50 rounded-full px-5 py-2.5 text-sm font-medium
+           hover:bg-brown-500 transition active:scale-[0.98];
+  }
+  .btn-accent {
+    @apply bg-forest text-beige-50 rounded-full px-5 py-2.5 text-sm font-medium
+           hover:bg-forest-400 transition active:scale-[0.98];
+  }
+}
