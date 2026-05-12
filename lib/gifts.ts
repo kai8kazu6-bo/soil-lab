@@ -3,17 +3,20 @@
 
 import { createClient, isSupabaseConfigured } from "./supabase/server";
 
-export const MOOCAL_TICKET_COST = 700;
-export const DONATION_MIN_AMOUNT = 100;
-export const DONATION_PRESETS = [100, 300, 500, 1000] as const;
-
-export type GiftKind = "moocal_700_shipping" | "donation";
+// クライアントセーフな定数・型は gifts-config.ts に分離（next/headers経路の遮断のため）
+export {
+  MOOCAL_TICKET_COST,
+  DONATION_MIN_AMOUNT,
+  DONATION_PRESETS,
+  type GiftKind,
+  type DonationPoolSummary,
+} from "./gifts-config";
 
 export type GiftRow = {
   id: string;
   sender_id: string;
   recipient_id: string | null;
-  kind: GiftKind;
+  kind: "moocal_700_shipping" | "donation";
   points_spent: number;
   message: string | null;
   redeemed_at: string | null;
@@ -27,13 +30,6 @@ export type GiftWithProfile = GiftRow & {
   recipient_handle: string | null;
   recipient_display_name: string | null;
   recipient_reuse: boolean;
-};
-
-export type DonationPoolSummary = {
-  total_points: number;
-  gift_count: number;
-  contributor_count: number;
-  last_contribution_at: string | null;
 };
 
 export type RedeemPageData = {

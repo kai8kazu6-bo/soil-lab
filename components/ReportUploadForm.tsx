@@ -13,7 +13,7 @@ import { uploadReport, type UploadReportResult } from "@/app/actions";
 import {
   REPORT_ACCEPT_MIME,
   REPORT_MAX_BYTES,
-} from "@/lib/reports";
+} from "@/lib/reports-config";
 import {
   ANALYSIS_KEYS,
   METRIC_LABEL,

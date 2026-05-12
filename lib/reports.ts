@@ -4,15 +4,12 @@
 import { createClient, isSupabaseConfigured } from "./supabase/server";
 import type { ReportRow } from "./supabase/types";
 
-export const REPORT_BUCKET = "reports";
-export const REPORT_MAX_BYTES = 20 * 1024 * 1024;
-export const REPORT_ACCEPT_MIME = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/heic",
-] as const;
+// クライアントセーフな定数は reports-config.ts に分離（next/headers経路の遮断のため）
+export {
+  REPORT_BUCKET,
+  REPORT_MAX_BYTES,
+  REPORT_ACCEPT_MIME,
+} from "./reports-config";
 
 export type ReportListItem = ReportRow & {
   /** 一覧表示用に発行した短期 signed URL（30分） */

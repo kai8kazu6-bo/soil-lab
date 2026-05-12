@@ -7,7 +7,7 @@ import {
   DONATION_MIN_AMOUNT,
   DONATION_PRESETS,
   type DonationPoolSummary,
-} from "@/lib/gifts";
+} from "@/lib/gifts-config";
 
 type Props = {
   balance: number;

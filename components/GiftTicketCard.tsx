@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Gift, Loader2, AtSign } from "lucide-react";
 import { sendMoocalTicket } from "@/app/actions";
-import { MOOCAL_TICKET_COST } from "@/lib/gifts";
+import { MOOCAL_TICKET_COST } from "@/lib/gifts-config";
 
 type Props = {
   balance: number;
