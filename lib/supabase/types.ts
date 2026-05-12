@@ -30,6 +30,8 @@ export type UserPointSummary = {
 
 export type ReportKind = "pdf" | "image";
 
+export type ReportTier = "basic" | "essence";
+
 export type ReportRow = {
   id: string;
   user_id: string;
@@ -40,6 +42,10 @@ export type ReportRow = {
   file_size: number;
   kind: ReportKind;
   lab_date: string | null;
+  /** basic=全員閲覧可 / essence=Soil Essence会員のみ */
+  tier: ReportTier;
+  /** アップロードしたスタッフID（監査用、null可） */
+  uploaded_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -80,6 +86,12 @@ export type ProfileRow = {
   reuse_agreement: boolean;
   /** リユース宣言を行った日時。未宣言時は null */
   agreement_date: string | null;
+  /** soilメンバー（スタッフ）。レポートをアップロードできる */
+  is_staff: boolean;
+  /** Soil Essence 契約者。tier=essence のレポートを閲覧できる */
+  is_essence_member: boolean;
+  /** Soil Essence 契約開始日。非会員時は null */
+  essence_member_since: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -332,6 +344,7 @@ export type Database = {
     Enums: {
       point_category: PointCategory;
       report_kind: ReportKind;
+      report_tier: ReportTier;
       gift_kind: GiftKind;
     };
   };

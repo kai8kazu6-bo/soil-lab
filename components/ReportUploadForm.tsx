@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  AtSign,
 } from "lucide-react";
 import { uploadReport, type UploadReportResult } from "@/app/actions";
 import {
@@ -19,7 +20,6 @@ import {
   METRIC_LABEL,
   METRIC_STEP,
   METRIC_UNIT,
-  type Improvement,
 } from "@/lib/analyses";
 
 type Props = {
@@ -39,19 +39,15 @@ export default function ReportUploadForm({ disabled = false }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
+  const [tier, setTier] = useState<"basic" | "essence">("basic");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [recovery, setRecovery] = useState<{
-    totalBonus: number;
-    improvements: Improvement[];
-  } | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function pickFile(f: File | null) {
     setError(null);
     setSuccess(null);
-    setRecovery(null);
     if (!f) {
       setFile(null);
       return;
@@ -77,6 +73,7 @@ export default function ReportUploadForm({ disabled = false }: Props) {
       return;
     }
     formData.set("file", file);
+    formData.set("tier", tier);
 
     startTransition(async () => {
       const res: UploadReportResult = await uploadReport(formData);
@@ -85,8 +82,8 @@ export default function ReportUploadForm({ disabled = false }: Props) {
         return;
       }
       setSuccess("アップロードしました");
-      setRecovery(res.recovery ?? null);
       setFile(null);
+      setTier("basic");
       formRef.current?.reset();
     });
   }
@@ -99,7 +96,10 @@ export default function ReportUploadForm({ disabled = false }: Props) {
       aria-label="レポートをアップロード"
     >
       <p className="text-xs font-medium tracking-wide text-brown-500">
-        新しいレポートをアップロード
+        スタッフ用：お客様にレポートを提供
+      </p>
+      <p className="mt-1 text-[11px] text-brown-500">
+        分析結果のPDFや画像を、指定したお客様のマイレポートに追加します。
       </p>
 
       {/* ファイルドロップゾーン */}
@@ -171,6 +171,66 @@ export default function ReportUploadForm({ disabled = false }: Props) {
 
       {/* メタ情報 */}
       <div className="mt-4 space-y-3">
+        <div>
+          <label
+            htmlFor="customer_handle"
+            className="text-xs font-medium text-brown-500"
+          >
+            提供先のお客様（ハンドル）
+          </label>
+          <div className="relative mt-1">
+            <AtSign
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brown-500"
+            />
+            <input
+              id="customer_handle"
+              name="customer_handle"
+              required
+              placeholder="aki_farm"
+              disabled={disabled}
+              className="w-full rounded-organic border border-beige-200 bg-white/80 px-3 py-2 pl-8 text-sm text-brown placeholder:text-brown-200 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30 disabled:opacity-60"
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-brown-500">レポート階層</p>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setTier("basic")}
+              disabled={disabled}
+              className={
+                "rounded-organic border px-3 py-2 text-left transition disabled:opacity-50 " +
+                (tier === "basic"
+                  ? "border-forest bg-forest text-beige-50"
+                  : "border-beige-200 bg-white/70 text-brown hover:border-forest/60")
+              }
+            >
+              <p className="text-sm font-semibold">Basic</p>
+              <p className="mt-0.5 text-[10px] opacity-80">基本の分析結果</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTier("essence")}
+              disabled={disabled}
+              className={
+                "rounded-organic border px-3 py-2 text-left transition disabled:opacity-50 " +
+                (tier === "essence"
+                  ? "border-forest bg-forest text-beige-50"
+                  : "border-beige-200 bg-white/70 text-brown hover:border-forest/60")
+              }
+            >
+              <p className="flex items-center gap-1 text-sm font-semibold">
+                <Sparkles size={11} />
+                Soil Essence
+              </p>
+              <p className="mt-0.5 text-[10px] opacity-80">契約者限定の特別レポート</p>
+            </button>
+          </div>
+        </div>
+
         <div>
           <label
             htmlFor="report-title"
@@ -281,34 +341,6 @@ export default function ReportUploadForm({ disabled = false }: Props) {
         <p className="mt-3 rounded-organic bg-forest/10 px-3 py-2 text-xs text-forest">
           {success}
         </p>
-      )}
-
-      {/* 土壌回復ボーナス結果 */}
-      {recovery && (
-        <div className="mt-3 rounded-organic border border-forest/30 bg-forest/5 p-3">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-forest">
-            <Sparkles size={14} />
-            土壌回復ボーナス +{recovery.totalBonus.toLocaleString()}pt
-          </p>
-          <ul className="mt-2 space-y-1">
-            {recovery.improvements.map((imp) => (
-              <li
-                key={imp.key}
-                className="flex items-center justify-between text-xs text-brown"
-              >
-                <span>
-                  <span className="font-medium">{imp.label}</span>{" "}
-                  <span className="text-brown-500">
-                    {imp.prev} → {imp.next}
-                  </span>
-                </span>
-                <span className="font-semibold text-forest tabular-nums">
-                  +{imp.bonus}pt
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
 
       <button

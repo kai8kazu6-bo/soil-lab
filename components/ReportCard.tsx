@@ -7,12 +7,17 @@ import {
   ExternalLink,
   Trash2,
   Calendar,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 import { deleteReport } from "@/app/actions";
+import ReportTierBadge from "./ReportTierBadge";
 import type { ReportListItem } from "@/lib/reports";
 
 type Props = {
   report: ReportListItem;
+  /** スタッフ閲覧かどうか（削除ボタン表示などに使う） */
+  staffMode?: boolean;
 };
 
 function formatBytes(bytes: number) {
@@ -30,9 +35,10 @@ function formatDate(d: string | null) {
   });
 }
 
-export default function ReportCard({ report }: Props) {
+export default function ReportCard({ report, staffMode = false }: Props) {
   const [pending, startTransition] = useTransition();
   const Icon = report.kind === "image" ? ImageIcon : FileText;
+  const locked = report.tier === "essence" && !report.has_access;
 
   function onDelete() {
     if (!confirm(`「${report.title}」を削除しますか？`)) return;
@@ -41,6 +47,46 @@ export default function ReportCard({ report }: Props) {
     });
   }
 
+  // -------------------------------------------------
+  // ロック状態（Essence非会員にEssenceレポートが届いている場合）
+  // -------------------------------------------------
+  if (locked) {
+    return (
+      <li className="overflow-hidden rounded-organic border border-forest/30 bg-forest/5 p-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-organic bg-forest/15 text-forest">
+            <Lock size={18} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <ReportTierBadge tier="essence" />
+              <span className="text-[10px] text-brown-500">
+                {formatDate(report.created_at)}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-sm font-semibold text-brown">
+              {report.title}
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-brown-500">
+              この特別分析レポートは Soil Essence 契約者専用です。
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="btn-accent mt-3 inline-flex w-full items-center justify-center gap-1.5 text-xs"
+        >
+          <Sparkles size={12} />
+          Soil Essence に申し込む
+        </button>
+      </li>
+    );
+  }
+
+  // -------------------------------------------------
+  // 通常状態（閲覧可能）
+  // -------------------------------------------------
   return (
     <li className="rounded-organic border border-beige-200 bg-white/70 p-3">
       <div className="flex items-start gap-3">
@@ -56,7 +102,13 @@ export default function ReportCard({ report }: Props) {
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-brown">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ReportTierBadge tier={report.tier} />
+            <span className="text-[10px] text-brown-500">
+              {formatDate(report.created_at)}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-sm font-semibold text-brown">
             {report.title}
           </p>
           {report.description && (
@@ -75,7 +127,6 @@ export default function ReportCard({ report }: Props) {
                 {formatDate(report.lab_date)}
               </span>
             )}
-            <span>· {formatDate(report.created_at)}</span>
           </div>
         </div>
       </div>
@@ -95,16 +146,18 @@ export default function ReportCard({ report }: Props) {
           <span className="text-xs text-brown-500">プレビューはこちら</span>
         )}
 
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={pending}
-          aria-label="削除"
-          className="inline-flex items-center gap-1 rounded-full border border-brown/15 px-2.5 py-1 text-xs text-brown-500 hover:bg-brown/5 disabled:opacity-50"
-        >
-          <Trash2 size={12} />
-          削除
-        </button>
+        {staffMode && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={pending}
+            aria-label="削除"
+            className="inline-flex items-center gap-1 rounded-full border border-brown/15 px-2.5 py-1 text-xs text-brown-500 hover:bg-brown/5 disabled:opacity-50"
+          >
+            <Trash2 size={12} />
+            削除
+          </button>
+        )}
       </div>
     </li>
   );

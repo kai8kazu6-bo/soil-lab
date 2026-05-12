@@ -94,12 +94,20 @@ export async function uploadReport(
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
   const labDate = String(formData.get("lab_date") ?? "").trim() || null;
+  const customerHandle = String(formData.get("customer_handle") ?? "")
+    .trim()
+    .toLowerCase();
+  const tierRaw = String(formData.get("tier") ?? "basic").trim();
+  const tier: "basic" | "essence" = tierRaw === "essence" ? "essence" : "basic";
 
   if (!(file instanceof File)) {
     return { ok: false, error: "ファイルが選択されていません" };
   }
   if (!title) {
     return { ok: false, error: "タイトルを入力してください" };
+  }
+  if (!customerHandle) {
+    return { ok: false, error: "提供先のお客様ハンドルを入力してください" };
   }
   if (
     !REPORT_ACCEPT_MIME.includes(
@@ -121,11 +129,38 @@ export async function uploadReport(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "ログインが必要です" };
 
+  // スタッフ権限チェック
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("is_staff")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!me?.is_staff) {
+    return {
+      ok: false,
+      error: "スタッフのみアップロード可能です。is_staff=true が必要です。",
+    };
+  }
+
+  // 顧客ハンドルから user_id を解決
+  const { data: customer } = await supabase
+    .from("profiles")
+    .select("id, handle, display_name")
+    .eq("handle", customerHandle)
+    .maybeSingle();
+  if (!customer) {
+    return {
+      ok: false,
+      error: `ハンドル「${customerHandle}」の顧客が見つかりませんでした`,
+    };
+  }
+
   const safeName = file.name
     .normalize("NFKC")
     .replace(/[^A-Za-z0-9_.\-ぁ-んァ-ヶ一-龠]/g, "_");
   const yyyymm = new Date().toISOString().slice(0, 7);
-  const storagePath = `${user.id}/${yyyymm}/${Date.now()}_${safeName}`;
+  // 顧客フォルダ配下に置く（顧客の SELECT ポリシーで読めるパス）
+  const storagePath = `${customer.id}/${yyyymm}/${Date.now()}_${safeName}`;
 
   // 1) Storage に保存
   const upload = await supabase.storage
@@ -138,11 +173,12 @@ export async function uploadReport(
 
   const kind: ReportKind = file.type === "application/pdf" ? "pdf" : "image";
 
-  // 2) reports に INSERT
+  // 2) reports に INSERT（user_id=顧客、uploaded_by=スタッフ）
   const { data: inserted, error: insertError } = await supabase
     .from("reports")
     .insert({
-      user_id: user.id,
+      user_id: customer.id,
+      uploaded_by: user.id,
       title,
       description,
       storage_path: storagePath,
@@ -150,6 +186,7 @@ export async function uploadReport(
       file_size: file.size,
       kind,
       lab_date: labDate,
+      tier,
     })
     .select("id")
     .single();
@@ -161,66 +198,29 @@ export async function uploadReport(
 
   const reportId = inserted.id;
 
-  // 3) 分析値が入力されていれば report_analyses に INSERT し、土壌回復ボーナスを判定
+  // 3) 分析値が入力されていれば report_analyses に INSERT（顧客のuser_idで保存）
+  //    旧仕様の「ユーザー自身がアップロード → 改善で回復ボーナス」はこの新仕様では
+  //    スタッフが顧客に直接ポイント付与できないため一旦無効化。
+  //    将来 award_recovery_bonus(p_customer_id, ...) のような security definer RPC を
+  //    用意して再導入可能。
   const analysis = parseAnalysisFromFormData(formData);
   const hasAnyAnalysis = ANALYSIS_KEYS.some(
     (k) => analysis[k] != null && Number.isFinite(analysis[k] as number)
   );
 
   if (hasAnyAnalysis) {
-    // 直近の前回分析（このレポート以前のもの）を取得
-    const { data: prev } = await supabase
-      .from("report_analyses")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: analysisRow } = await supabase
-      .from("report_analyses")
-      .insert({
-        report_id: reportId,
-        user_id: user.id,
-        measured_at: labDate,
-        ph: analysis.ph ?? null,
-        cec: analysis.cec ?? null,
-        humus_pct: analysis.humus_pct ?? null,
-        nitrogen_mg: analysis.nitrogen_mg ?? null,
-        phosphorus_mg: analysis.phosphorus_mg ?? null,
-        potassium_mg: analysis.potassium_mg ?? null,
-        microbial_score: analysis.microbial_score ?? null,
-      })
-      .select("*")
-      .single();
-
-    if (prev && analysisRow) {
-      const { improvements, totalBonus } = computeRecoveryBonus(
-        prev,
-        analysisRow
-      );
-
-      if (totalBonus > 0) {
-        const labels = improvements.map((i) => METRIC_LABEL[i.key]).join("・");
-        await supabase.rpc("award_points", {
-          p_amount: totalBonus,
-          p_category: "bonus",
-          p_reason: `土壌回復ボーナス：${labels} が改善`,
-          p_metadata: {
-            analysis_id: analysisRow.id,
-            improvements: improvements.map((i) => ({
-              key: i.key,
-              prev: i.prev,
-              next: i.next,
-              bonus: i.bonus,
-            })),
-          },
-        });
-
-        revalidatePath("/reports");
-        revalidatePath("/");
-        return { ok: true, recovery: { totalBonus, improvements } };
-      }
-    }
+    await supabase.from("report_analyses").insert({
+      report_id: reportId,
+      user_id: customer.id,
+      measured_at: labDate,
+      ph: analysis.ph ?? null,
+      cec: analysis.cec ?? null,
+      humus_pct: analysis.humus_pct ?? null,
+      nitrogen_mg: analysis.nitrogen_mg ?? null,
+      phosphorus_mg: analysis.phosphorus_mg ?? null,
+      potassium_mg: analysis.potassium_mg ?? null,
+      microbial_score: analysis.microbial_score ?? null,
+    });
   }
 
   revalidatePath("/reports");

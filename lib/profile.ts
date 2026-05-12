@@ -16,6 +16,9 @@ const MOCK_PROFILE: ProfileRow = {
   display_name: "鏡沼さん",
   reuse_agreement: false,
   agreement_date: null,
+  is_staff: false,
+  is_essence_member: false,
+  essence_member_since: null,
   created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
   updated_at: new Date().toISOString(),
 };
