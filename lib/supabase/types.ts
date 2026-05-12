@@ -122,6 +122,43 @@ export type VideoCommentRow = {
   created_at: string;
 };
 
+export type FeedMediaKind = "image" | "video";
+
+export type FeedPostRow = {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeedPostMediaRow = {
+  id: string;
+  post_id: string;
+  storage_path: string;
+  mime_type: string;
+  kind: FeedMediaKind;
+  display_order: number;
+  created_at: string;
+};
+
+export type FeedReactionRow = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  kind: string;
+  created_at: string;
+};
+
+export type FeedCommentRow = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -192,6 +229,40 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<VideoCommentRow>;
+      };
+      feed_posts: {
+        Row: FeedPostRow;
+        Insert: Omit<FeedPostRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<FeedPostRow>;
+      };
+      feed_post_media: {
+        Row: FeedPostMediaRow;
+        Insert: Omit<FeedPostMediaRow, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<FeedPostMediaRow>;
+      };
+      feed_reactions: {
+        Row: FeedReactionRow;
+        Insert: Omit<FeedReactionRow, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<FeedReactionRow>;
+      };
+      feed_comments: {
+        Row: FeedCommentRow;
+        Insert: Omit<FeedCommentRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<FeedCommentRow>;
       };
     };
     Views: {

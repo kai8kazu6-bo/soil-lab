@@ -360,6 +360,195 @@ export async function declareReuse() {
 }
 
 // =============================================================
+//  フィード投稿の作成（テキスト＋メディア最大4ファイル）
+// =============================================================
+export type CreateFeedPostResult =
+  | { ok: false; error: string }
+  | { ok: true; post_id: string; uploaded: number };
+
+export async function createFeedPost(
+  formData: FormData
+): Promise<CreateFeedPostResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabaseが未設定です" };
+  }
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { ok: false, error: "本文を入力してください" };
+  if (body.length > 4000) return { ok: false, error: "本文は4000字以内にしてください" };
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length > 4) return { ok: false, error: "添付は4ファイルまでです" };
+
+  for (const f of files) {
+    if (f.size > 50 * 1024 * 1024) {
+      return { ok: false, error: `${f.name} が50MBを超えています` };
+    }
+    if (!f.type.startsWith("image/") && !f.type.startsWith("video/")) {
+      return { ok: false, error: `${f.name} は対応していない形式です` };
+    }
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "ログインが必要です" };
+
+  // 1) 投稿を先に作成
+  const { data: post, error: postErr } = await supabase
+    .from("feed_posts")
+    .insert({ author_id: user.id, body })
+    .select("id")
+    .single();
+  if (postErr || !post) {
+    return { ok: false, error: postErr?.message ?? "投稿に失敗しました" };
+  }
+
+  // 2) 各メディアをアップロード→メタINSERT
+  let uploaded = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const safeName = f.name
+      .normalize("NFKC")
+      .replace(/[^A-Za-z0-9_.\-ぁ-んァ-ヶ一-龠]/g, "_");
+    const path = `${user.id}/${post.id}/${Date.now()}_${i}_${safeName}`;
+
+    const up = await supabase.storage
+      .from("feed-media")
+      .upload(path, f, { contentType: f.type, upsert: false });
+    if (up.error) {
+      // 失敗した場合は投稿をロールバック
+      await supabase.from("feed_posts").delete().eq("id", post.id);
+      return { ok: false, error: up.error.message };
+    }
+
+    const kind = f.type.startsWith("image/") ? "image" : "video";
+    const { error: mediaErr } = await supabase.from("feed_post_media").insert({
+      post_id: post.id,
+      storage_path: path,
+      mime_type: f.type,
+      kind,
+      display_order: i,
+    });
+    if (mediaErr) {
+      await supabase.storage.from("feed-media").remove([path]);
+      await supabase.from("feed_posts").delete().eq("id", post.id);
+      return { ok: false, error: mediaErr.message };
+    }
+    uploaded++;
+  }
+
+  revalidatePath("/feed");
+  return { ok: true, post_id: post.id, uploaded };
+}
+
+// =============================================================
+//  リアクションのトグル（Sprout応援）
+// =============================================================
+export async function toggleFeedReaction(postId: string) {
+  if (!isSupabaseConfigured()) {
+    return { ok: false as const, error: "Supabaseが未設定です" };
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "ログインが必要です" };
+
+  const { data: existing } = await supabase
+    .from("feed_reactions")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .eq("kind", "sprout")
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("feed_reactions")
+      .delete()
+      .eq("id", existing.id);
+    if (error) return { ok: false as const, error: error.message };
+    revalidatePath("/feed");
+    return { ok: true as const, reacted: false };
+  }
+
+  const { error } = await supabase.from("feed_reactions").insert({
+    post_id: postId,
+    user_id: user.id,
+    kind: "sprout",
+  });
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath("/feed");
+  return { ok: true as const, reacted: true };
+}
+
+// =============================================================
+//  フィードへのコメント投稿
+// =============================================================
+export async function createFeedComment(formData: FormData) {
+  if (!isSupabaseConfigured()) {
+    return { ok: false as const, error: "Supabaseが未設定です" };
+  }
+
+  const postId = String(formData.get("post_id") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  if (!postId) return { ok: false as const, error: "投稿IDがありません" };
+  if (!body) return { ok: false as const, error: "コメントを入力してください" };
+  if (body.length > 1000)
+    return { ok: false as const, error: "1000字以内で入力してください" };
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "ログインが必要です" };
+
+  const { data, error } = await supabase
+    .from("feed_comments")
+    .insert({ post_id: postId, author_id: user.id, body })
+    .select("id")
+    .single();
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/feed");
+  return { ok: true as const, commentId: data?.id ?? null };
+}
+
+// =============================================================
+//  フィード投稿の削除（関連メディア・コメント・リアクションも cascade で消える）
+// =============================================================
+export async function deleteFeedPost(postId: string) {
+  if (!isSupabaseConfigured()) {
+    return { ok: false as const, error: "Supabaseが未設定です" };
+  }
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "ログインが必要です" };
+
+  // 紐づいているメディアの storage_path を取得（投稿削除後は取れなくなるため先に）
+  const { data: media } = await supabase
+    .from("feed_post_media")
+    .select("storage_path")
+    .eq("post_id", postId);
+  const paths = (media ?? []).map((m) => m.storage_path);
+
+  const { error } = await supabase.from("feed_posts").delete().eq("id", postId);
+  if (error) return { ok: false as const, error: error.message };
+
+  if (paths.length > 0) {
+    await supabase.storage.from("feed-media").remove(paths);
+  }
+
+  revalidatePath("/feed");
+  return { ok: true as const };
+}
+
+// =============================================================
 //  動画の視聴を記録（初回のみポイント付与）
 // =============================================================
 export async function recordVideoWatch(videoId: string) {
