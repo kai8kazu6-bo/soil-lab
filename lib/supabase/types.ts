@@ -91,6 +91,37 @@ export type DonationPoolSummaryRow = {
   last_contribution_at: string | null;
 };
 
+export type VideoRow = {
+  id: string;
+  youtube_id: string;
+  title: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  points_for_watch: number;
+  points_for_first_comment: number;
+  is_published: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VideoWatchRow = {
+  id: string;
+  user_id: string;
+  video_id: string;
+  points_awarded: number;
+  watched_at: string;
+};
+
+export type VideoCommentRow = {
+  id: string;
+  user_id: string;
+  video_id: string;
+  body: string;
+  points_awarded: number;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -136,6 +167,31 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<ProfileRow>;
+      };
+      videos: {
+        Row: VideoRow;
+        Insert: Omit<VideoRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<VideoRow>;
+      };
+      video_watches: {
+        Row: VideoWatchRow;
+        Insert: Omit<VideoWatchRow, "id" | "watched_at"> & {
+          id?: string;
+          watched_at?: string;
+        };
+        Update: Partial<VideoWatchRow>;
+      };
+      video_comments: {
+        Row: VideoCommentRow;
+        Insert: Omit<VideoCommentRow, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<VideoCommentRow>;
       };
     };
     Views: {
@@ -184,6 +240,21 @@ export type Database = {
           granted_bonus: boolean;
           bonus_amount: number;
           agreement_date: string;
+        };
+      };
+      record_video_watch: {
+        Args: { p_video_id: string };
+        Returns: {
+          already_watched: boolean;
+          points_awarded: number;
+        };
+      };
+      post_video_comment: {
+        Args: { p_video_id: string; p_body: string };
+        Returns: {
+          comment_id: string;
+          points_awarded: number;
+          first_comment: boolean;
         };
       };
     };

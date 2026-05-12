@@ -1,0 +1,64 @@
+import Header from "@/components/Header";
+import BottomNav from "@/components/BottomNav";
+import VideoCard from "@/components/VideoCard";
+import { getVideosPageData } from "@/lib/videos";
+import { getCurrentProfile } from "@/lib/profile";
+import { PlayCircle } from "lucide-react";
+
+export const dynamic = "force-dynamic";
+
+export default async function VideosPage() {
+  const [{ videos, isMock, isAnonymous }, prof] = await Promise.all([
+    getVideosPageData(),
+    getCurrentProfile(),
+  ]);
+  const userName = prof.profile?.display_name ?? "鏡沼さん";
+  const reuseDeclared = prof.profile?.reuse_agreement ?? false;
+  const demoMode = isMock || isAnonymous;
+
+  return (
+    <main className="relative z-10 px-5 pt-6">
+      <Header userName={userName} reuseAgreement={reuseDeclared} />
+
+      <div className="mt-6">
+        <p className="text-xs font-medium text-forest">動画</p>
+        <h1 className="mt-1 text-2xl font-bold leading-tight text-brown">
+          土を学ぶ、土を語る
+        </h1>
+        <p className="mt-1 text-sm text-brown-500">
+          視聴とコメントで「理念共鳴」のポイントが貯まります。
+        </p>
+      </div>
+
+      {(isMock || isAnonymous) && (
+        <div className="mt-4 rounded-organic border border-beige-200 bg-white/60 px-4 py-3 text-xs text-brown-500">
+          {isMock
+            ? "Supabase未接続のためデモ動画を表示中。ボタンはUI上のみ動作します。"
+            : "ログインすると、視聴・コメントで実際にポイントが貯まります。"}
+        </div>
+      )}
+
+      <section className="mt-5 space-y-5">
+        {videos.length === 0 ? (
+          <div className="rounded-organic border border-dashed border-beige-300 bg-beige-50/50 px-4 py-8 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-forest/10 text-forest">
+              <PlayCircle size={22} />
+            </span>
+            <p className="mt-3 text-sm font-medium text-brown">
+              まだ公開中の動画がありません
+            </p>
+            <p className="mt-1 text-xs text-brown-500">
+              管理者が videos テーブルに YouTube ID を登録すると一覧に並びます。
+            </p>
+          </div>
+        ) : (
+          videos.map((v) => (
+            <VideoCard key={v.id} video={v} demoMode={demoMode} />
+          ))
+        )}
+      </section>
+
+      <BottomNav active="videos" />
+    </main>
+  );
+}

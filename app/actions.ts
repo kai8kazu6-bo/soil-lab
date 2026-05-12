@@ -360,6 +360,60 @@ export async function declareReuse() {
 }
 
 // =============================================================
+//  動画の視聴を記録（初回のみポイント付与）
+// =============================================================
+export async function recordVideoWatch(videoId: string) {
+  if (!isSupabaseConfigured()) {
+    return { ok: false as const, error: "Supabaseが未設定です" };
+  }
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("record_video_watch", {
+    p_video_id: videoId,
+  });
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/videos");
+  revalidatePath("/");
+  return {
+    ok: true as const,
+    alreadyWatched: Boolean((data as { already_watched?: boolean })?.already_watched),
+    pointsAwarded: Number((data as { points_awarded?: number })?.points_awarded ?? 0),
+  };
+}
+
+// =============================================================
+//  動画にコメントを投稿（初コメントのみポイント付与）
+// =============================================================
+export async function postVideoComment(formData: FormData) {
+  if (!isSupabaseConfigured()) {
+    return { ok: false as const, error: "Supabaseが未設定です" };
+  }
+
+  const videoId = String(formData.get("video_id") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+
+  if (!videoId) return { ok: false as const, error: "動画IDがありません" };
+  if (!body) return { ok: false as const, error: "コメントを入力してください" };
+  if (body.length > 1000) return { ok: false as const, error: "1000字以内で入力してください" };
+
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("post_video_comment", {
+    p_video_id: videoId,
+    p_body: body,
+  });
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/videos");
+  revalidatePath("/");
+  return {
+    ok: true as const,
+    commentId: (data as { comment_id?: string })?.comment_id ?? null,
+    pointsAwarded: Number((data as { points_awarded?: number })?.points_awarded ?? 0),
+    firstComment: Boolean((data as { first_comment?: boolean })?.first_comment),
+  };
+}
+
+// =============================================================
 //  受け取ったチケットを利用済みにする
 // =============================================================
 export async function redeemMoocalTicket(giftId: string) {
