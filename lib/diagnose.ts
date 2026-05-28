@@ -2,6 +2,23 @@
 // Client/Server 両方から安全に import できる（純粋関数 + 定数のみ）。
 
 export type ResourceType = "solid" | "liquid";
+
+/** 分析候補（DBから取り込み用のUIで使う） */
+export type AnalysisOption = {
+  id: string;
+  /** プルダウンに表示するラベル（例: "畑Aの春の堆肥分析（4/10）"） */
+  label: string;
+  resourceType: ResourceType;
+  /** 既知の数値（null は未測定） */
+  values: {
+    cn_ratio?: number | null;
+    moisture?: number | null;
+    ec?: number | null;
+    ph?: number | null;
+    ammonia?: number | null;
+    ammonia_ratio?: number | null;
+  };
+};
 export type Status = "ideal" | "warn" | "danger";
 
 export type SolidInput = {
@@ -510,4 +527,26 @@ export function deriveSolutions(
   // 同じソリューションが万一重複した場合はユニーク化
   const seen = new Set<string>();
   return out.filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)));
+}
+
+// =============================================================
+//  AnalysisOption → SolidInput / LiquidInput への変換
+// =============================================================
+export function analysisToSolidInput(opt: AnalysisOption): SolidInput {
+  return {
+    cn_ratio: opt.values.cn_ratio ?? null,
+    moisture: opt.values.moisture ?? null,
+    ec: opt.values.ec ?? null,
+    ph: opt.values.ph ?? null,
+    ammonia: opt.values.ammonia ?? null,
+  };
+}
+
+export function analysisToLiquidInput(opt: AnalysisOption): LiquidInput {
+  return {
+    ec: opt.values.ec ?? null,
+    ammonia_ratio: opt.values.ammonia_ratio ?? null,
+    ph: opt.values.ph ?? null,
+    moisture: opt.values.moisture ?? null,
+  };
 }

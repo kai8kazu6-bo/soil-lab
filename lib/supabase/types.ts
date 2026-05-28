@@ -50,11 +50,16 @@ export type ReportRow = {
   updated_at: string;
 };
 
+export type ReportResourceType = "soil" | "solid_compost" | "liquid_slurry";
+
 export type ReportAnalysisRow = {
   id: string;
   report_id: string;
   user_id: string;
   measured_at: string | null;
+  /** 分析対象の資材種別 */
+  resource_type: ReportResourceType;
+  // 土壌用
   ph: number | null;
   cec: number | null;
   humus_pct: number | null;
@@ -62,6 +67,12 @@ export type ReportAnalysisRow = {
   phosphorus_mg: number | null;
   potassium_mg: number | null;
   microbial_score: number | null;
+  // 堆肥/スラリー用
+  cn_ratio: number | null;
+  moisture: number | null;
+  ec: number | null;
+  ammonia_ppm: number | null;
+  ammonia_ratio: number | null;
   created_at: string;
 };
 

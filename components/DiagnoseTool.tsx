@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   AlertOctagon,
   Sparkles,
+  Upload,
 } from "lucide-react";
 import {
   STATUS_STYLE,
@@ -18,6 +19,9 @@ import {
   diagnoseSolid,
   diagnoseLiquid,
   deriveSolutions,
+  analysisToSolidInput,
+  analysisToLiquidInput,
+  type AnalysisOption,
   type DiagnoseRow,
   type LiquidInput,
   type MetricMeta,
@@ -186,11 +190,17 @@ function ResultRow({ row }: { row: DiagnoseRow }) {
   );
 }
 
-export default function DiagnoseTool() {
+type Props = {
+  /** 「分析結果から取り込み」候補（DBから渡されるレポート由来の分析値） */
+  options?: AnalysisOption[];
+};
+
+export default function DiagnoseTool({ options = [] }: Props) {
   const [type, setType] = useState<ResourceType>("solid");
   const [solid, setSolid] = useState<SolidInput>(EMPTY_SOLID);
   const [liquid, setLiquid] = useState<LiquidInput>(EMPTY_LIQUID);
   const [lowPh, setLowPh] = useState(false);
+  const [importedFrom, setImportedFrom] = useState<string | null>(null);
 
   const rows = useMemo<DiagnoseRow[]>(
     () => (type === "solid" ? diagnoseSolid(solid) : diagnoseLiquid(liquid)),
@@ -213,6 +223,22 @@ export default function DiagnoseTool() {
     setSolid(EMPTY_SOLID);
     setLiquid(EMPTY_LIQUID);
     setLowPh(false);
+    setImportedFrom(null);
+  }
+
+  function importFromAnalysis(optionId: string) {
+    const opt = options.find((o) => o.id === optionId);
+    if (!opt) {
+      setImportedFrom(null);
+      return;
+    }
+    setType(opt.resourceType);
+    if (opt.resourceType === "solid") {
+      setSolid(analysisToSolidInput(opt));
+    } else {
+      setLiquid(analysisToLiquidInput(opt));
+    }
+    setImportedFrom(opt.id);
   }
 
   function setSolidField<K extends keyof SolidInput>(
@@ -264,6 +290,44 @@ export default function DiagnoseTool() {
         </div>
       </div>
 
+      {/* 分析結果から取り込み（候補があるときだけ表示） */}
+      {options.length > 0 && (
+        <div className="mt-4 rounded-organic border border-forest/30 bg-forest/5 p-3 print:hidden">
+          <label
+            htmlFor="diag-import"
+            className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-forest"
+          >
+            <Upload size={11} />
+            分析結果から自動取り込み
+          </label>
+          <div className="mt-1.5 flex items-center gap-2">
+            <select
+              id="diag-import"
+              value={importedFrom ?? ""}
+              onChange={(e) => importFromAnalysis(e.currentTarget.value)}
+              className="flex-1 rounded-organic border border-beige-200 bg-white px-3 py-1.5 text-sm text-brown focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30"
+            >
+              <option value="">-- レポートを選択 --</option>
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.resourceType === "solid" ? "🌾 " : "💧 "}
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {importedFrom && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-forest px-2.5 py-1 text-[10px] font-semibold text-beige-50">
+                <Check size={10} />
+                取り込み済
+              </span>
+            )}
+          </div>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-brown-500">
+            スタッフが登録した分析値が自動入力され、その場で判定が表示されます。
+          </p>
+        </div>
+      )}
+
       {/* 資材タイプ切替 */}
       <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">
         {[
@@ -285,7 +349,10 @@ export default function DiagnoseTool() {
             <button
               key={key}
               type="button"
-              onClick={() => setType(key)}
+              onClick={() => {
+                setType(key);
+                setImportedFrom(null);
+              }}
               className={
                 "rounded-organic border px-3 py-2.5 text-left transition " +
                 (active

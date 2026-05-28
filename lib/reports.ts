@@ -3,7 +3,13 @@
 // tier='essence' のレポートは Soil Essence 会員のみ閲覧可能（signed URL未生成）。
 
 import { createClient, isSupabaseConfigured } from "./supabase/server";
-import type { ReportRow, ReportTier } from "./supabase/types";
+import type {
+  ReportAnalysisRow,
+  ReportResourceType,
+  ReportRow,
+  ReportTier,
+} from "./supabase/types";
+import type { AnalysisOption } from "./diagnose";
 
 // クライアントセーフな定数は reports-config.ts に分離
 export {
@@ -27,7 +33,45 @@ export type ReportListResult = {
   isEssenceMember: boolean;
   /** 現在ユーザーがスタッフか（アップロード権限を持つか） */
   isStaff: boolean;
+  /** 診断ツールに渡せる「分析結果から取り込み」候補 */
+  diagnoseOptions: AnalysisOption[];
 };
+
+/** report_analyses 行 + 親レポートの簡易情報を AnalysisOption に変換 */
+function analysisToOption(
+  row: ReportAnalysisRow,
+  parentReport: { title: string; lab_date: string | null } | undefined
+): AnalysisOption | null {
+  // soil タイプは堆肥/スラリー診断には使わないので除外
+  if (row.resource_type === "soil") return null;
+
+  const dateStr = row.measured_at ?? parentReport?.lab_date ?? row.created_at;
+  const datePart = dateStr
+    ? new Date(dateStr).toLocaleDateString("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+      })
+    : null;
+  const titlePart = parentReport?.title ?? "分析結果";
+  const label = datePart ? `${titlePart}（${datePart}）` : titlePart;
+
+  const resourceType: "solid" | "liquid" =
+    row.resource_type === "solid_compost" ? "solid" : "liquid";
+
+  return {
+    id: row.id,
+    label,
+    resourceType,
+    values: {
+      cn_ratio: row.cn_ratio,
+      moisture: row.moisture,
+      ec: row.ec,
+      ph: row.ph,
+      ammonia: row.ammonia_ppm,
+      ammonia_ratio: row.ammonia_ratio,
+    },
+  };
+}
 
 const MOCK_ITEMS: ReportListItem[] = [
   {
@@ -66,6 +110,32 @@ const MOCK_ITEMS: ReportListItem[] = [
   },
 ];
 
+const MOCK_DIAGNOSE_OPTIONS: AnalysisOption[] = [
+  {
+    id: "demo-a1",
+    label: "畑Aの堆肥分析（4/10）",
+    resourceType: "solid",
+    values: {
+      cn_ratio: 18.2,
+      moisture: 62,
+      ec: 3.4,
+      ph: 7.0,
+      ammonia: 1200,
+    },
+  },
+  {
+    id: "demo-a2",
+    label: "牛舎スラリー分析（4/22）",
+    resourceType: "liquid",
+    values: {
+      ec: 6.8,
+      ammonia_ratio: 48,
+      ph: 7.6,
+      moisture: 95,
+    },
+  },
+];
+
 export async function listReports(): Promise<ReportListResult> {
   if (!isSupabaseConfigured()) {
     return {
@@ -74,6 +144,7 @@ export async function listReports(): Promise<ReportListResult> {
       isAnonymous: false,
       isEssenceMember: false,
       isStaff: false,
+      diagnoseOptions: MOCK_DIAGNOSE_OPTIONS,
     };
   }
 
@@ -88,6 +159,7 @@ export async function listReports(): Promise<ReportListResult> {
       isAnonymous: true,
       isEssenceMember: false,
       isStaff: false,
+      diagnoseOptions: [],
     };
   }
 
@@ -112,8 +184,26 @@ export async function listReports(): Promise<ReportListResult> {
       isAnonymous: false,
       isEssenceMember,
       isStaff,
+      diagnoseOptions: [],
     };
   }
+
+  // 自分宛ての堆肥/スラリー分析値を取得
+  const { data: analyses } = await supabase
+    .from("report_analyses")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("resource_type", ["solid_compost", "liquid_slurry"])
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const reportById = new Map(rows.map((r) => [r.id, r]));
+  const diagnoseOptions: AnalysisOption[] = (analyses ?? [])
+    .map((a) => {
+      const parent = reportById.get(a.report_id);
+      return analysisToOption(a, parent);
+    })
+    .filter((x): x is AnalysisOption => x !== null);
 
   // 30分有効な signed URL を「閲覧可能なレポート」だけに発行
   const items: ReportListItem[] = await Promise.all(
@@ -140,6 +230,7 @@ export async function listReports(): Promise<ReportListResult> {
     isAnonymous: false,
     isEssenceMember,
     isStaff,
+    diagnoseOptions,
   };
 }
 

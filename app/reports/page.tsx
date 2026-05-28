@@ -11,8 +11,10 @@ import { getCurrentProfile } from "@/lib/profile";
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const [{ items, isMock, isAnonymous, isEssenceMember, isStaff }, prof] =
-    await Promise.all([listReports(), getCurrentProfile()]);
+  const [
+    { items, isMock, isAnonymous, isEssenceMember, isStaff, diagnoseOptions },
+    prof,
+  ] = await Promise.all([listReports(), getCurrentProfile()]);
   const userName = prof.profile?.display_name ?? "鏡沼さん";
   const reuseDeclared = prof.profile?.reuse_agreement ?? false;
 
@@ -49,7 +51,7 @@ export default async function ReportsPage() {
         {isStaff && <ReportUploadForm disabled={isMock || isAnonymous} />}
 
         {/* 現場で診断する：堆肥・スラリー診断ツール */}
-        <DiagnoseTool />
+        <DiagnoseTool options={diagnoseOptions} />
 
         {/* Basicレポート一覧 */}
         <div className="card p-5">

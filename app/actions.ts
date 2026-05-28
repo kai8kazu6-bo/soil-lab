@@ -199,27 +199,55 @@ export async function uploadReport(
   const reportId = inserted.id;
 
   // 3) 分析値が入力されていれば report_analyses に INSERT（顧客のuser_idで保存）
-  //    旧仕様の「ユーザー自身がアップロード → 改善で回復ボーナス」はこの新仕様では
-  //    スタッフが顧客に直接ポイント付与できないため一旦無効化。
-  //    将来 award_recovery_bonus(p_customer_id, ...) のような security definer RPC を
-  //    用意して再導入可能。
   const analysis = parseAnalysisFromFormData(formData);
-  const hasAnyAnalysis = ANALYSIS_KEYS.some(
+  const hasAnySoil = ANALYSIS_KEYS.some(
     (k) => analysis[k] != null && Number.isFinite(analysis[k] as number)
   );
 
-  if (hasAnyAnalysis) {
+  // 堆肥/スラリー指標
+  const resourceTypeRaw = String(formData.get("resource_type") ?? "soil").trim();
+  const resourceType: "soil" | "solid_compost" | "liquid_slurry" =
+    resourceTypeRaw === "solid_compost" || resourceTypeRaw === "liquid_slurry"
+      ? resourceTypeRaw
+      : "soil";
+
+  function num(name: string): number | null {
+    const raw = formData.get(name);
+    if (raw == null || String(raw).trim() === "") return null;
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  const compost = {
+    cn_ratio: num("compost_cn_ratio"),
+    moisture: num("compost_moisture"),
+    ec: num("compost_ec"),
+    ammonia_ppm: num("compost_ammonia_ppm"),
+    ammonia_ratio: num("compost_ammonia_ratio"),
+    ph: num("compost_ph"),
+  };
+  const hasAnyCompost = Object.values(compost).some((v) => v != null);
+
+  if (hasAnySoil || hasAnyCompost || resourceType !== "soil") {
     await supabase.from("report_analyses").insert({
       report_id: reportId,
       user_id: customer.id,
       measured_at: labDate,
-      ph: analysis.ph ?? null,
+      resource_type: resourceType,
+      // 土壌系
+      ph: analysis.ph ?? compost.ph ?? null,
       cec: analysis.cec ?? null,
       humus_pct: analysis.humus_pct ?? null,
       nitrogen_mg: analysis.nitrogen_mg ?? null,
       phosphorus_mg: analysis.phosphorus_mg ?? null,
       potassium_mg: analysis.potassium_mg ?? null,
       microbial_score: analysis.microbial_score ?? null,
+      // 堆肥/スラリー系
+      cn_ratio: compost.cn_ratio,
+      moisture: compost.moisture,
+      ec: compost.ec,
+      ammonia_ppm: compost.ammonia_ppm,
+      ammonia_ratio: compost.ammonia_ratio,
     });
   }
 

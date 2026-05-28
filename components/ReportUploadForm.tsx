@@ -40,6 +40,9 @@ export default function ReportUploadForm({ disabled = false }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [tier, setTier] = useState<"basic" | "essence">("basic");
+  const [resourceType, setResourceType] = useState<
+    "soil" | "solid_compost" | "liquid_slurry"
+  >("soil");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -74,6 +77,7 @@ export default function ReportUploadForm({ disabled = false }: Props) {
     }
     formData.set("file", file);
     formData.set("tier", tier);
+    formData.set("resource_type", resourceType);
 
     startTransition(async () => {
       const res: UploadReportResult = await uploadReport(formData);
@@ -278,9 +282,38 @@ export default function ReportUploadForm({ disabled = false }: Props) {
             className="mt-1 w-full rounded-organic border border-beige-200 bg-white/80 px-3 py-2 text-sm text-brown focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30 disabled:opacity-60"
           />
         </div>
+
+        {/* 資材タイプ */}
+        <div>
+          <p className="text-xs font-medium text-brown-500">資材タイプ</p>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {(
+              [
+                { v: "soil", label: "土壌" },
+                { v: "solid_compost", label: "固体堆肥" },
+                { v: "liquid_slurry", label: "液体スラリー" },
+              ] as const
+            ).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setResourceType(v)}
+                disabled={disabled}
+                className={
+                  "rounded-organic border px-2 py-1.5 text-xs font-medium transition disabled:opacity-50 " +
+                  (resourceType === v
+                    ? "border-forest bg-forest text-beige-50"
+                    : "border-beige-200 bg-white/70 text-brown hover:border-forest/60")
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* 分析値入力（折りたたみ） */}
+      {/* 分析値入力（折りたたみ。資材タイプによってフィールドが変わる） */}
       <div className="mt-4 rounded-organic border border-beige-200 bg-beige-50/60">
         <button
           type="button"
@@ -291,7 +324,7 @@ export default function ReportUploadForm({ disabled = false }: Props) {
             <Sparkles size={13} className="text-forest" />
             分析データを入力（任意）
             <span className="text-[10px] font-normal text-brown-500">
-              前回より改善があれば回復ボーナス +pt
+              入力すると診断ツールから自動取り込みできます
             </span>
           </span>
           {showAnalysis ? (
@@ -301,7 +334,7 @@ export default function ReportUploadForm({ disabled = false }: Props) {
           )}
         </button>
 
-        {showAnalysis && (
+        {showAnalysis && resourceType === "soil" && (
           <div className="grid grid-cols-2 gap-2 px-3 pb-3">
             {ANALYSIS_KEYS.map((k) => (
               <div key={k}>
@@ -322,6 +355,73 @@ export default function ReportUploadForm({ disabled = false }: Props) {
                   type="number"
                   inputMode="decimal"
                   step={METRIC_STEP[k]}
+                  min={0}
+                  disabled={disabled}
+                  className="mt-0.5 w-full rounded-organic border border-beige-200 bg-white/80 px-2.5 py-1.5 text-sm text-brown placeholder:text-brown-200 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30 disabled:opacity-60"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAnalysis && resourceType === "solid_compost" && (
+          <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+            {[
+              { key: "compost_cn_ratio",     label: "C/N比",       unit: "",       step: 0.1 },
+              { key: "compost_moisture",     label: "水分",        unit: "%",      step: 0.5 },
+              { key: "compost_ec",           label: "EC",          unit: "ms/cm",  step: 0.1 },
+              { key: "compost_ph",           label: "pH",          unit: "",       step: 0.1 },
+              { key: "compost_ammonia_ppm",  label: "アンモニア態N", unit: "ppm",    step: 10 },
+            ].map((f) => (
+              <div key={f.key}>
+                <label
+                  htmlFor={f.key}
+                  className="text-[11px] font-medium text-brown-500"
+                >
+                  {f.label}
+                  {f.unit && (
+                    <span className="ml-0.5 text-brown-500/70">({f.unit})</span>
+                  )}
+                </label>
+                <input
+                  id={f.key}
+                  name={f.key}
+                  type="number"
+                  inputMode="decimal"
+                  step={f.step}
+                  min={0}
+                  disabled={disabled}
+                  className="mt-0.5 w-full rounded-organic border border-beige-200 bg-white/80 px-2.5 py-1.5 text-sm text-brown placeholder:text-brown-200 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30 disabled:opacity-60"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAnalysis && resourceType === "liquid_slurry" && (
+          <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+            {[
+              { key: "compost_ec",            label: "EC",                  unit: "ms/cm", step: 0.1 },
+              { key: "compost_ammonia_ratio", label: "アンモニア態Nの割合",  unit: "%",     step: 1 },
+              { key: "compost_ph",            label: "pH",                  unit: "",      step: 0.1 },
+              { key: "compost_moisture",      label: "水分",                unit: "%",     step: 0.1 },
+            ].map((f) => (
+              <div key={f.key}>
+                <label
+                  htmlFor={f.key}
+                  className="text-[11px] font-medium text-brown-500"
+                >
+                  {f.label}
+                  {f.unit && (
+                    <span className="ml-0.5 text-brown-500/70">({f.unit})</span>
+                  )}
+                </label>
+                <input
+                  id={f.key}
+                  name={f.key}
+                  type="number"
+                  inputMode="decimal"
+                  step={f.step}
                   min={0}
                   disabled={disabled}
                   className="mt-0.5 w-full rounded-organic border border-beige-200 bg-white/80 px-2.5 py-1.5 text-sm text-brown placeholder:text-brown-200 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/30 disabled:opacity-60"
