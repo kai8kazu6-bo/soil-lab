@@ -4,6 +4,7 @@ import ReportUploadForm from "@/components/ReportUploadForm";
 import ReportCard from "@/components/ReportCard";
 import EmptyReports from "@/components/EmptyReports";
 import EssenceMembershipBanner from "@/components/EssenceMembershipBanner";
+import DiagnoseTool from "@/components/DiagnoseTool";
 import { listReports } from "@/lib/reports";
 import { getCurrentProfile } from "@/lib/profile";
 
@@ -46,6 +47,9 @@ export default async function ReportsPage() {
       <section className="mt-6 space-y-5">
         {/* スタッフだけにアップロードフォームを表示 */}
         {isStaff && <ReportUploadForm disabled={isMock || isAnonymous} />}
+
+        {/* 現場で診断する：堆肥・スラリー診断ツール */}
+        <DiagnoseTool />
 
         {/* Basicレポート一覧 */}
         <div className="card p-5">
